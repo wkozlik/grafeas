@@ -28,58 +28,59 @@ import (
 )
 
 // CreateNote creates the specified note.
-func (g *API) CreateNote(ctx context.Context, req *gpb.CreateNoteRequest) (*gpb.Note, error) {
+func (g *API) CreateNote(ctx context.Context, req *gpb.CreateNoteRequest, resp *gpb.Note) error {
 	pID, err := name.ParseProject(req.Parent)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := g.Auth.CheckAccessAndProject(ctx, pID, "", NotesCreate); err != nil {
-		return nil, err
+		return err
 	}
 
 	if req.NoteId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "a noteId must be specified")
+		return status.Errorf(codes.InvalidArgument, "a noteId must be specified")
 	}
 	if req.Note == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "a note must be specified")
+		return status.Errorf(codes.InvalidArgument, "a note must be specified")
 	}
 	if err := grafeas.ValidateNote(req.Note); err != nil {
 		if g.EnforceValidation {
-			return nil, err
+			return err
 		}
 		logger.Warningf("CreateNote %+v for project %q: invalid note, fail open, would have failed with: %v", req.Note, pID, err)
 	}
 
 	uID, err := g.Auth.EndUserID(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	n, err := g.Storage.CreateNote(ctx, pID, req.NoteId, uID, req.Note)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return n, nil
+	*resp = *n
+	return nil
 }
 
 // BatchCreateNotes batch creates the specified notes.
-func (g *API) BatchCreateNotes(ctx context.Context, req *gpb.BatchCreateNotesRequest) (*gpb.BatchCreateNotesResponse, error) {
+func (g *API) BatchCreateNotes(ctx context.Context, req *gpb.BatchCreateNotesRequest, resp *gpb.BatchCreateNotesResponse) error {
 	pID, err := name.ParseProject(req.Parent)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := g.Auth.CheckAccessAndProject(ctx, pID, "", NotesCreate); err != nil {
-		return nil, err
+		return err
 	}
 
 	if len(req.Notes) == 0 {
-		return nil, status.Errorf(codes.InvalidArgument, "at least one note must be specified")
+		return status.Errorf(codes.InvalidArgument, "at least one note must be specified")
 	}
 	if len(req.Notes) > maxBatchSize {
-		return nil, status.Errorf(codes.InvalidArgument, "%d is too many notes to batch create, a maximum of %d notes is allowed per batch create", len(req.Notes), maxBatchSize)
+		return status.Errorf(codes.InvalidArgument, "%d is too many notes to batch create, a maximum of %d notes is allowed per batch create", len(req.Notes), maxBatchSize)
 	}
 	validationErrs := []error{}
 	for i, n := range req.Notes {
@@ -89,82 +90,83 @@ func (g *API) BatchCreateNotes(ctx context.Context, req *gpb.BatchCreateNotesReq
 	}
 	if len(validationErrs) > 0 {
 		if g.EnforceValidation {
-			return nil, status.Errorf(codes.InvalidArgument, "one or more notes are invalid, no notes were created: %v", validationErrs)
+			return status.Errorf(codes.InvalidArgument, "one or more notes are invalid, no notes were created: %v", validationErrs)
 		}
 		logger.Warningf("BatchCreateNotes %+v for project %q: invalid note(s), fail open, would have failed with: %v", req.Notes, pID, validationErrs)
 	}
 
 	uID, err := g.Auth.EndUserID(ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	created, errs := g.Storage.BatchCreateNotes(ctx, pID, uID, req.Notes)
+	resp.Notes = created
 	if len(errs) > 0 {
 		// Report any storage layer errors as invalid argument for now, find a better way to do this.
-		return nil, status.Errorf(codes.InvalidArgument, "errors encountered when batch creating notes: %d of %d notes failed: %v", len(errs), len(req.Notes), errs)
+		return status.Errorf(codes.InvalidArgument, "errors encountered when batch creating notes: %d of %d notes failed: %v", len(errs), len(req.Notes), errs)
 	}
-	resp := &gpb.BatchCreateNotesResponse{
-		Notes: created,
-	}
-	return resp, nil
+
+	return nil
 }
 
 // GetNote gets the specified note.
-func (g *API) GetNote(ctx context.Context, req *gpb.GetNoteRequest) (*gpb.Note, error) {
+func (g *API) GetNote(ctx context.Context, req *gpb.GetNoteRequest, resp *gpb.Note) error {
 	pID, nID, err := name.ParseNote(req.Name)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := g.Auth.CheckAccessAndProject(ctx, pID, nID, NotesGet); err != nil {
-		return nil, err
+		return err
 	}
 
 	n, err := g.Storage.GetNote(ctx, pID, nID)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	*resp = *n
 
-	return n, nil
+	return nil
 }
 
 // UpdateNote updates the specified note.
-func (g *API) UpdateNote(ctx context.Context, req *gpb.UpdateNoteRequest) (*gpb.Note, error) {
+func (g *API) UpdateNote(ctx context.Context, req *gpb.UpdateNoteRequest, resp *gpb.Note) error {
 	pID, nID, err := name.ParseNote(req.Name)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := g.Auth.CheckAccessAndProject(ctx, pID, nID, NotesUpdate); err != nil {
-		return nil, err
+		return err
 	}
 
 	if req.Note == nil {
-		return nil, status.Errorf(codes.InvalidArgument, "a note must be specified")
+		return status.Errorf(codes.InvalidArgument, "a note must be specified")
 	}
 
 	n, err := g.Storage.UpdateNote(ctx, pID, nID, req.Note, req.UpdateMask)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	*resp = *n
 
-	return n, nil
+	return nil
 }
 
 // DeleteNote deletes the specified note.
-func (g *API) DeleteNote(ctx context.Context, req *gpb.DeleteNoteRequest) (*emptypb.Empty, error) {
+func (g *API) DeleteNote(ctx context.Context, req *gpb.DeleteNoteRequest, _ *emptypb.Empty) error {
 	pID, nID, err := name.ParseNote(req.Name)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := g.Auth.CheckAccessAndProject(ctx, pID, nID, NotesDelete); err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := g.Storage.DeleteNote(ctx, pID, nID); err != nil {
-		return nil, err
+		return err
 	}
 
 	// Purge any IAM policies set on this entity.
@@ -173,51 +175,51 @@ func (g *API) DeleteNote(ctx context.Context, req *gpb.DeleteNoteRequest) (*empt
 		logger.Warningf("Error deleting policies for note %q in project %q: %v", nID, pID, err)
 	}
 
-	return &emptypb.Empty{}, nil
+	return nil
 }
 
 // ListNotes lists notes for the specified project.
-func (g *API) ListNotes(ctx context.Context, req *gpb.ListNotesRequest) (*gpb.ListNotesResponse, error) {
+func (g *API) ListNotes(ctx context.Context, req *gpb.ListNotesRequest, resp *gpb.ListNotesResponse) error {
 	pID, err := name.ParseProject(req.Parent)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := g.Auth.CheckAccessAndProject(ctx, pID, "", NotesList); err != nil {
-		return nil, err
+		return err
 	}
 
 	ps, err := validatePageSize(req.PageSize)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	notes, npt, err := g.Storage.ListNotes(ctx, pID, req.Filter, req.PageToken, ps)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	resp := &gpb.ListNotesResponse{
-		Notes:         notes,
-		NextPageToken: npt,
-	}
-	return resp, nil
+	resp.Notes = notes
+	resp.NextPageToken = npt
+
+	return nil
 }
 
 // GetOccurrenceNote gets the note for the specified occurrence.
-func (g *API) GetOccurrenceNote(ctx context.Context, req *gpb.GetOccurrenceNoteRequest) (*gpb.Note, error) {
+func (g *API) GetOccurrenceNote(ctx context.Context, req *gpb.GetOccurrenceNoteRequest, resp *gpb.Note) error {
 	pID, oID, err := name.ParseOccurrence(req.Name)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	if err := g.Auth.CheckAccessAndProject(ctx, pID, oID, OccurrencesGet); err != nil {
-		return nil, err
+		return err
 	}
 
 	n, err := g.Storage.GetOccurrenceNote(ctx, pID, oID)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	*resp = *n
 
-	return n, nil
+	return nil
 }

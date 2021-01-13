@@ -22,7 +22,6 @@ import (
 	"golang.org/x/net/context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/testing/protocmp"
 )
 
 // fakeStorage implements the projects storage interface using an in-memory map for tests. Filters
@@ -104,7 +103,7 @@ func TestCreateProject(t *testing.T) {
 		t.Errorf("Got err %v, want success", err)
 	}
 
-	if diff := cmp.Diff(proj, resp, protocmp.Transform()); diff != "" {
+	if diff := cmp.Diff(proj, resp); diff != "" {
 		t.Errorf("CreateProject(%v) returned diff (want -> got):\n%s", req, diff)
 	}
 }
@@ -190,7 +189,7 @@ func TestGetProject(t *testing.T) {
 		t.Errorf("Got err %v, want success", err)
 	}
 
-	if diff := cmp.Diff(proj, gotP, protocmp.Transform()); diff != "" {
+	if diff := cmp.Diff(proj, gotP); diff != "" {
 		t.Errorf("GetProject(%v) returned diff (want -> got):\n%s", req, diff)
 	}
 }
@@ -258,7 +257,7 @@ func TestListProjects(t *testing.T) {
 		t.Errorf("Got err %v, want success", err)
 	}
 
-	if diff := cmp.Diff(proj, resp.Projects[0], protocmp.Transform()); diff != "" {
+	if diff := cmp.Diff(proj, resp.Projects[0]); diff != "" {
 		t.Errorf("ListProjects(%v) returned diff (want -> got):\n%s", req, diff)
 	}
 }
